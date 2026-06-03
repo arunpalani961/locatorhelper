@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Selenium Locator Scanner</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <!-- Tab Navigation -->
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="simple">Quick Scan</button>
+        <button class="tab-btn" data-tab="session">Multi-Page Session</button>
+      </div>
+
+      <!-- Simple Scan Tab -->
+      <div id="simple-tab" class="tab-content active">
+        <section class="panel hero">
+          <div>
+            <p class="app-label">Selenium locator scanner</p>
+            <h1>Find stronger locators from any public page.</h1>
+            <p class="intro">
+              Enter a URL, scan visible interactive elements, and get Selenium-ready locator recommendations ranked by stability.
+            </p>
+          </div>
+          <form id="scanForm" class="scan-form">
+            <label for="urlInput">Target site URL</label>
+            <div class="url-row">
+              <input id="urlInput" name="url" type="url" placeholder="https://example.com" required />
+              <button id="scanButton" type="submit">Scan</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="status-strip" aria-live="polite">
+          <div>
+            <span class="status-label">Status</span>
+            <strong id="statusText">Ready</strong>
+          </div>
+          <div>
+            <span class="status-label">Elements</span>
+            <strong id="countText">0</strong>
+          </div>
+          <div>
+            <span class="status-label">Page</span>
+            <strong id="pageText">No scan yet</strong>
+          </div>
+          <button id="exportButton" type="button" disabled>Export CSV</button>
+        </section>
+
+        <section class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Element</th>
+                <th>Text / Label</th>
+                <th>Best Locator</th>
+                <th>Value</th>
+                <th>Confidence</th>
+                <th>Java Example</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody">
+              <tr class="empty-row">
+                <td colspan="6">Run a scan to generate Selenium locators.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <!-- Multi-Page Session Tab -->
+      <div id="session-tab" class="tab-content">
+        <section class="panel session-panel">
+          <div class="session-header">
+            <div>
+              <p class="app-label">Multi-Page Session</p>
+              <h2>Login & Navigate Then Scan</h2>
+              <p class="intro">
+                Create a persistent browser session, log in, navigate through pages, and scan locators at each step.
+              </p>
+            </div>
+            <div class="session-controls">
+              <button id="startSessionBtn" type="button" class="session-action">Start Session</button>
+              <button id="endSessionBtn" type="button" class="session-action" disabled>End Session</button>
+              <span id="sessionIdText" class="session-id"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Session Status -->
+        <section class="status-strip" aria-live="polite" id="sessionStatus" style="display:none;">
+          <div>
+            <span class="status-label">Session</span>
+            <strong id="sessionStatusText">Waiting</strong>
+          </div>
+          <div>
+            <span class="status-label">Current Page</span>
+            <strong id="sessionPageText">—</strong>
+          </div>
+          <div>
+            <span class="status-label">Elements Scanned</span>
+            <strong id="sessionCountText">0</strong>
+          </div>
+        </section>
+
+        <!-- Login Form -->
+        <section class="panel form-panel" id="loginPanel" style="display:none;">
+          <h3>Step 1: Login</h3>
+          <div class="form-group">
+            <label for="loginUrl">Login Page URL</label>
+            <input id="loginUrl" type="url" placeholder="https://example.com/login" />
+          </div>
+          <div class="form-group">
+            <label for="usernameSelector">Username Field Selector</label>
+            <input id="usernameSelector" type="text" placeholder="e.g., #username or [name='email']" value="#username" />
+          </div>
+          <div class="form-group">
+            <label for="usernameValue">Username</label>
+            <input id="usernameValue" type="text" placeholder="your username" />
+          </div>
+          <div class="form-group">
+            <label for="passwordSelector">Password Field Selector</label>
+            <input id="passwordSelector" type="text" placeholder="e.g., #password or [name='password']" value="#password" />
+          </div>
+          <div class="form-group">
+            <label for="passwordValue">Password</label>
+            <input id="passwordValue" type="password" placeholder="your password" />
+          </div>
+          <div class="form-group">
+            <label for="loginButtonSelector">Login Button Selector</label>
+            <input id="loginButtonSelector" type="text" placeholder="e.g., button[type='submit'] or #login-btn" value="button[type='submit']" />
+          </div>
+          <button id="performLoginBtn" type="button" class="form-action">Perform Login</button>
+        </section>
+
+        <!-- Navigation Form -->
+        <section class="panel form-panel" id="navigationPanel" style="display:none;">
+          <h3>Step 2: Navigate & Scan</h3>
+          <div class="form-group">
+            <label for="navigateUrl">Navigate to URL</label>
+            <input id="navigateUrl" type="url" placeholder="https://example.com/dashboard" />
+            <button id="navigateBtn" type="button" class="inline-btn">Navigate</button>
+          </div>
+          <div class="form-group">
+            <label for="clickSelector">Or Click Element (CSS Selector)</label>
+            <input id="clickSelector" type="text" placeholder="e.g., a.nav-link or #menu-item" />
+            <button id="clickBtn" type="button" class="inline-btn">Click</button>
+          </div>
+          <button id="scanSessionBtn" type="button" class="form-action">Scan Current Page</button>
+        </section>
+
+        <!-- Session Results -->
+        <section class="table-wrap" id="sessionResults" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Element</th>
+                <th>Text / Label</th>
+                <th>Best Locator</th>
+                <th>Value</th>
+                <th>Confidence</th>
+                <th>Java Example</th>
+              </tr>
+            </thead>
+            <tbody id="sessionResultsBody">
+              <tr class="empty-row">
+                <td colspan="6">Scan results will appear here.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </main>
+
+    <template id="rowTemplate">
+      <tr>
+        <td class="element"></td>
+        <td class="text"></td>
+        <td><code class="best-by"></code></td>
+        <td><code class="best-value"></code><small class="reason"></small></td>
+        <td><span class="score"></span></td>
+        <td><code class="java"></code><details><summary>Alternatives</summary><div class="alternatives"></div></details></td>
+      </tr>
+    </template>
+    <script src="/app.js"></script>
+  </body>
+</html>
