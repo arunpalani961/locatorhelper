@@ -500,25 +500,49 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
+    def do_GET(self) -> None:
+        path = urlparse(self.path).path
+        if path == "/api/health":
+            self.send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "selenium": webdriver is not None,
+                    "chromium": shutil.which("chromium") or shutil.which("google-chrome") or "",
+                },
+            )
+        elif path.startswith("/api/"):
+            self.send_json(HTTPStatus.NOT_FOUND, {"error": f"API route not found: {path}"})
+        else:
+            super().do_GET()
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.send_header("access-control-allow-origin", "*")
+        self.send_header("access-control-allow-methods", "GET, OPTIONS, POST")
+        self.send_header("access-control-allow-headers", "content-type")
+        self.end_headers()
+
     def do_POST(self) -> None:
-        if self.path == "/api/scan":
+        path = urlparse(self.path).path
+        if path == "/api/scan":
             self._handle_scan()
-        elif self.path == "/api/session/start":
+        elif path == "/api/session/start":
             self._handle_session_start()
-        elif self.path == "/api/session/navigate":
+        elif path == "/api/session/navigate":
             self._handle_session_navigate()
-        elif self.path == "/api/session/fill":
+        elif path == "/api/session/fill":
             self._handle_session_fill()
-        elif self.path == "/api/session/click":
+        elif path == "/api/session/click":
             self._handle_session_click()
-        elif self.path == "/api/session/scan":
+        elif path == "/api/session/scan":
             self._handle_session_scan()
-        elif self.path == "/api/session/info":
+        elif path == "/api/session/info":
             self._handle_session_info()
-        elif self.path == "/api/session/end":
+        elif path == "/api/session/end":
             self._handle_session_end()
         else:
-            self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+            self.send_json(HTTPStatus.NOT_FOUND, {"error": f"API route not found: {path}"})
     
     def _get_json(self) -> dict[str, Any]:
         length = int(self.headers.get("content-length", "0"))
@@ -528,9 +552,13 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             payload = self._get_json()
             url = clean_text(payload.get("url"), 2048)
+            safe_url, headers = split_basic_auth_url(url)
+            auth_note = " with Basic Auth header" if headers else ""
+            sys.stderr.write(f"[locator-scanner] scanning {safe_url}{auth_note}\n")
             result = scan_url(url)
             self.send_json(HTTPStatus.OK, result)
         except Exception as exc:
+            sys.stderr.write(f"[locator-scanner] scan failed: {exc}\n")
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": html.escape(str(exc))})
     
     def _handle_session_start(self) -> None:
@@ -669,6 +697,7 @@ class Handler(SimpleHTTPRequestHandler):
         body = json.dumps(payload, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("content-type", "application/json; charset=utf-8")
+        self.send_header("access-control-allow-origin", "*")
         self.send_header("content-length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
