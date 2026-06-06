@@ -8,12 +8,13 @@ import shutil
 import sys
 import time
 import uuid
+from base64 import b64encode
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Optional
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse, urlunparse
 
 try:
     from selenium import webdriver
@@ -30,6 +31,38 @@ APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
+
+
+def split_basic_auth_url(url: str) -> tuple[str, dict[str, str]]:
+    parsed = urlparse(url)
+    if not parsed.username:
+        return url, {}
+
+    username = unquote(parsed.username)
+    password = unquote(parsed.password or "")
+    token = b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    clean_netloc = parsed.hostname or ""
+    if parsed.port:
+        clean_netloc = f"{clean_netloc}:{parsed.port}"
+    clean_url = urlunparse(
+        (
+            parsed.scheme,
+            clean_netloc,
+            parsed.path or "/",
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+    return clean_url, {"Authorization": f"Basic {token}"}
+
+
+def apply_extra_headers(driver: Any, headers: dict[str, str]) -> None:
+    if not headers:
+        return
+    driver.execute_cdp_cmd("Network.enable", {})
+    driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": headers})
+
 
 # Session management
 class DriverSession:
@@ -59,7 +92,9 @@ class DriverSession:
     def navigate(self, url: str):
         if self.driver is None:
             raise RuntimeError("Session not initialized")
-        self.driver.get(url)
+        clean_url, headers = split_basic_auth_url(url)
+        apply_extra_headers(self.driver, headers)
+        self.driver.get(clean_url)
         time.sleep(1.25)
     
     def fill_field(self, selector: str, value: str):
@@ -382,7 +417,8 @@ def scan_url(url: str) -> dict[str, Any]:
     if webdriver is None or Options is None:
         raise RuntimeError("Selenium is not installed. Run `python -m pip install -r requirements.txt`.")
 
-    parsed = urlparse(url)
+    clean_url, headers = split_basic_auth_url(url)
+    parsed = urlparse(clean_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("Enter a full URL starting with http:// or https://.")
 
@@ -405,8 +441,9 @@ def scan_url(url: str) -> dict[str, Any]:
     started_at = time.time()
     try:
         driver = webdriver.Chrome(options=options)
+        apply_extra_headers(driver, headers)
         driver.set_page_load_timeout(30)
-        driver.get(url)
+        driver.get(clean_url)
         time.sleep(1.25)
         raw_items = driver.execute_script(SCAN_SCRIPT)
         title = driver.title
